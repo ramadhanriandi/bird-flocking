@@ -1,0 +1,187 @@
+// LINK VIDEO : https://youtu.be/tZWJNs1wF2M
+
+//----------------------------------------------------------------------------
+
+DAFTAR PERUBAHAN :
+
+// Penambahan variabel global bertipe bool sebagai penanda dipanggilnya menu flock
+bool flock = FALSE;
+
+// Pemberian warna dengan menggunakan vertex_colors
+void quad( int a, int b, int c, int d ) {
+    colors[Index] = vertex_colors[Index]; points[Index] = vertices[a]; Index++;
+    colors[Index] = vertex_colors[Index]; points[Index] = vertices[b]; Index++;
+    colors[Index] = vertex_colors[Index]; points[Index] = vertices[c]; Index++;
+    colors[Index] = vertex_colors[Index]; points[Index] = vertices[d]; Index++;
+}
+
+// Penambahan fungsi yang membuat partikel bergerak menuju pusat massa
+// Hitung dulu pusat massa dari semua partikel kecuali partikel saat ini dalam sebuah variabel (vec_particle)
+// Lalu pindahkan partikel ke arah pusat massa dengan mengurangi pusat massa dengan partikel saat ini
+vec3 flyToCentral(int idx_particle) {
+    vec3 vec_particle = vec3(0.0);
+
+    for (int i = 0; i < num_particles; i++) {
+        if (i != idx_particle) {
+            for (int j = 0; j < 3; j++) {
+                vec_particle[j] += particles[i].position[j];
+            }
+        }
+    }
+
+    vec_particle /= (num_particles - 1);
+    
+    for (int i = 0; i < 3; i++) {
+        vec_particle[i] -= particles[idx_particle].position[i];
+    }
+
+    return vec_particle / 2;
+}
+
+// Penambahan fungsi yang membuat setiap partikel menjaga jarak sehingga tidak saling bertabrakan
+// Inisialisi sebuah variabel (vec_particle) dengan 0 agar vektor yang ditambahkan ke posisi saat ini dapat memindahkan partikel yang mendekati
+// Lalu kurangkan variabel tersebut (vec_particle) dengan setiap partikel yang jaraknya di bawah threshold
+vec3 keepDistance(int idx_particle) {
+    vec3 vec_particle = vec3(0.0);
+
+    for (int i = 0; i < num_particles; i++) {
+        if (i != idx_particle) {
+            if (length(particles[i].position - particles[idx_particle].position) < 0.15) {
+                for (int j = 0; j < 3; j++) {
+                    vec_particle[j] -= (particles[i].position[j] - particles[idx_particle].position[j]);
+                }
+            }
+        }
+    }
+
+    return vec_particle;
+}
+
+// Penambahan fungsi yang membuat sebuah partikel mampu mencocokkan kecepatan dengan partikel sekitarnya.
+// Hitung dulu kecepatan rata-rata dari setiap partikel kecuali partikel saat ini dalam sebuah variabel (vec_particle)
+// Lalu kurangi kecepatan rata-rata tersebut dengan kecepatan partikel saat ini
+vec3 matchNeighbourVelocity(int idx_particle) {
+    vec3 vec_particle = vec3(0.0);
+
+    for (int i = 0; i < num_particles; i++) {
+        if (i != idx_particle) {
+            for (int j = 0; j < 3; j++) {
+                vec_particle[j] += particles[i].velocity[j];
+            }
+        }
+    }
+
+    vec_particle /= (num_particles - 1);
+    
+    for (int i = 0; i < 3; i++) {
+        vec_particle[i] -= particles[idx_particle].velocity[i];
+    }
+
+    return vec_particle / 2;
+}
+
+// Pada fungsi idle, tambahkan kondisi dengan boolean flock yang telah diinisialisasi
+// Jika flock, maka setiap kecepatan partikel ditambahkan dengan hasil ketiga fungsi yang telah dibuat di atas
+// Posisi partikel merupakan hasil dari kecepatan yang diterapkan
+void idle(void) {
+    int
+        i,
+        j,
+        k;
+    float
+        dt;
+
+    present_time = glutGet( GLUT_ELAPSED_TIME );
+    dt = 0.001 * ( present_time - last_time );
+
+    if ( flock ) {
+        vec3 v1, v2, v3;
+        particle p;
+
+        for (int i = 0; i < num_particles; i++) {
+            v1 = flyToCentral(i);
+            v2 = keepDistance(i);
+            v3 = matchNeighbourVelocity(i);
+
+            particles[i].velocity += (v1 + v2 + v3);
+            particles[i].position += (dt * particles[i].velocity);
+            collision( i );
+        }
+    } else {
+        for ( i = 0; i < num_particles; i++ ) {
+            for ( j = 0; j < 3; j++ ) {
+                particles[i].position[j] += dt * particles[i].velocity[j];
+                particles[i].velocity[j] +=
+                    dt * forces( i, j ) / particles[i].mass;
+            }
+            collision( i );
+        }
+        if ( repulsion )
+            for ( i = 0; i < num_particles; i++ )
+                for ( k = 0; k < i; k++ ) {
+                    d2[i][k] = 0.0;
+                    for ( j = 0; j < 3; j++ )
+                        d2[i][k] += ( particles[i].position[j] -
+                                    particles[k].position[j] ) *
+                            ( particles[i].position[j] -
+                            particles[k].position[j] );
+                    d2[k][i] = d2[i][k];
+                }
+    }
+    last_time = present_time;
+    glutPostRedisplay();
+}
+
+// Pada fungsi menu, hanya ditambahkan kondisi baru yaitu case 10 (flock)
+void menu(int option) {
+    switch (option) {
+	case 1:
+            num_particles *= 2;
+            break;
+
+	case 2:
+            num_particles /= 2;
+            break;
+
+	case 3:
+            speed *= 2.0;
+            break;
+
+	case 4:
+            speed /= 2.0;
+            break;
+
+	case 5:
+            point_size *= 2.0;
+            break;
+
+	case 6:
+            point_size /= 2.0;
+            if ( point_size < 1.0 )
+                point_size = 1.0;
+            break;
+
+	case 7:
+            gravity = !gravity;
+            break;
+
+	case 8:
+            elastic = !elastic;
+	        coef = elastic ? 0.9 : 1.0;
+            break;
+
+	case 9:
+            repulsion = !repulsion;
+            break;
+
+    case 10:
+            flock = !flock;
+            break;
+
+	case 11:
+            exit( EXIT_SUCCESS );
+            break;
+    }
+
+    glutPostRedisplay();
+}
